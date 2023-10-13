@@ -51,6 +51,10 @@
 #include <assert.h>
 #include "rs.h"
 
+#ifdef USENEON
+#include "gal_neon.h"
+#endif
+
 /*
  * stuff used for testing purposes only
  */
@@ -304,6 +308,12 @@ slow_addmul1(gf *dst1, gf *src1, gf c, int sz)
     gf *lim = &dst[sz - UNROLL + 1] ;
 
     GF_MULC0(c) ;
+
+#ifdef USENEON
+    lim += UNROLL - 1;
+    galMulXorNeon(__gf_mulc_, src1, dst1, lim - dst);
+    return;
+#endif
 
 #if (UNROLL > 1) /* unrolling by 8/16 is quite effective on the pentium */
     for (; dst < lim ; dst += UNROLL, src += UNROLL ) {

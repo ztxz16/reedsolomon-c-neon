@@ -555,7 +555,7 @@ void benchmarkEncode(void) {
     double millis;
     double per_sec_in_bytes;
     double MB = 1024.0 * 1024.0;
-    double millis_to_sec = 1000*1000;
+    double millis_to_sec = 1000;
     int n;
     int size;
 
@@ -565,18 +565,18 @@ void benchmarkEncode(void) {
     size = 10000;
     millis = benchmarkEncodeTest(n, 10, 2, size);
 
-    per_sec_in_bytes = (10*2*size/MB) * millis_to_sec * n / millis;
+    per_sec_in_bytes = ((10 + 2)*size/MB) * millis_to_sec * n / millis;
     printf("10x2x10000, test_count=%d millis=%lf per_sec_in_bytes=%lfMB/s\n", n, millis, per_sec_in_bytes);
 
     n = 200;
     millis = benchmarkEncodeTest(n, 100, 20, size);
-    per_sec_in_bytes = (100*20*size/MB) * millis_to_sec * n / millis;
+    per_sec_in_bytes = ((100 + 20)*size/MB) * millis_to_sec * n / millis;
     printf("100x20x10000, test_count=%d millis=%lf per_sec_in_bytes=%lfMB/s\n", n, millis, per_sec_in_bytes);
 
     n = 200;
     size = 1024*1024;
     millis = benchmarkEncodeTest(n, 17, 3, size);
-    per_sec_in_bytes = (17*3*size/MB) * millis_to_sec * n / millis;
+    per_sec_in_bytes = ((17 + 3)*size/MB) * millis_to_sec * n / millis;
     printf("17x3x(1024*1024), test_count=%d millis=%lf per_sec_in_bytes=%lfMB/s\n", n, millis, per_sec_in_bytes);
 }
 
@@ -805,12 +805,12 @@ int main(void) {
     test_reconstruct();
     printf("reach here means test all ok\n");
 
-    benchmarkEncode();
-
     //test_001();
     //test_002();
     test_003();
     //test_004();
+
+    benchmarkEncode();
 
     return 0;
 }
