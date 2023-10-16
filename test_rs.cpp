@@ -7,12 +7,25 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include <vector>
+#include <thread>
+
 #define PROFILE
 #include "rs.h"
-#include "rs.c"
+#include "rs.cpp"
+#include "chrono"
 
 void print_matrix1(gf* matrix, int nrows, int ncols);
 void print_matrix2(gf** matrix, int nrows, int ncols);
+
+//#define assert ass
+void ass(bool a) {
+}
+
+static double GetSpan(std::chrono::system_clock::time_point time1, std::chrono::system_clock::time_point time2) {
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds> (time2 - time1);
+    return double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den;
+};
 
 void print_buf(gf* buf, char *fmt, size_t len) {
     size_t i = 0;
@@ -531,53 +544,52 @@ void test_reconstruct(void) {
     }
 }
 
-double benchmarkEncodeTest(int n, int dataShards, int parityShards, int shardSize) {
-    clock_t start, end;
-    double millis;
-    unsigned char* data;
+double benchmarkEncodeTest(int n, int dataShards, int parityShards, int shardSize, int threadNumber = 1) {
     int i;
     int dataSize = shardSize*dataShards;
-    reed_solomon* rs = reed_solomon_new(dataShards, parityShards);
 
-    data = test_create_random(rs, dataSize, shardSize);
-
-    start = clock();
-    for(i = 0; i < n; i++) {
-        test_create_encoding(rs, data, dataSize, shardSize);
+    auto st = std::chrono::system_clock::now();
+    std::vector <std::thread*> threads;
+    for (int t = 0; t < threadNumber; t++) {
+        threads.push_back(new std::thread([&]() {
+            reed_solomon* rs = reed_solomon_new(dataShards, parityShards);
+            unsigned char* data = test_create_random(rs, dataSize, shardSize);
+            for (int i = 0; i < n; i++) {
+                test_create_encoding(rs, data, dataSize, shardSize);
+            }
+        }));
     }
-    end = clock();
-    millis = (double)(end - start) * 1000.0 / CLOCKS_PER_SEC;
+    for (int t = 0; t < threadNumber; t++){
+        threads[t]->join();
+    }
+    double millis = GetSpan(st, std::chrono::system_clock::now()) * 1000.0;
     return (millis);
 }
 
-/* TODO please check, is this benchmark ok? */
-void benchmarkEncode(void) {
+void benchmarkEncodeTestMultiThread(int n, int size, int dataShards, int parityShards, int threadNumber) {
     double millis;
     double per_sec_in_bytes;
     double MB = 1024.0 * 1024.0;
     double millis_to_sec = 1000;
-    int n;
-    int size;
 
+    millis = benchmarkEncodeTest(n, dataShards, parityShards, size, threadNumber);
+    per_sec_in_bytes = ((double)(dataShards + parityShards) * size * threadNumber / MB) * millis_to_sec * n / millis;
+    //printf("(%d + %d) x %d, test_count = %d, threads = %d, millis = %f, per_sec_in_bytes = %f MB/s\n",
+    //       dataShards, parityShards, size, n, threadNumber, millis, per_sec_in_bytes);
+    printf("%d,%d,%d,%f\n", dataShards, parityShards, threadNumber, per_sec_in_bytes);
+}
+
+/* TODO please check, is this benchmark ok? */
+void benchmarkEncode(void) {
     printf("%s:\n", __FUNCTION__);
 
-    n = 20000;
-    size = 10000;
-    millis = benchmarkEncodeTest(n, 10, 2, size);
-
-    per_sec_in_bytes = ((10 + 2)*size/MB) * millis_to_sec * n / millis;
-    printf("10x2x10000, test_count=%d millis=%lf per_sec_in_bytes=%lfMB/s\n", n, millis, per_sec_in_bytes);
-
-    n = 200;
-    millis = benchmarkEncodeTest(n, 100, 20, size);
-    per_sec_in_bytes = ((100 + 20)*size/MB) * millis_to_sec * n / millis;
-    printf("100x20x10000, test_count=%d millis=%lf per_sec_in_bytes=%lfMB/s\n", n, millis, per_sec_in_bytes);
-
-    n = 200;
-    size = 1024*1024;
-    millis = benchmarkEncodeTest(n, 17, 3, size);
-    per_sec_in_bytes = ((17 + 3)*size/MB) * millis_to_sec * n / millis;
-    printf("17x3x(1024*1024), test_count=%d millis=%lf per_sec_in_bytes=%lfMB/s\n", n, millis, per_sec_in_bytes);
+    printf("Data,Parity,Thread,Speed(MB/s)\n");
+    for (int i = 1; i <= 32; i += i) {
+        benchmarkEncodeTestMultiThread(20000, 10000, 5, 2, i);
+        benchmarkEncodeTestMultiThread(20000, 10000, 8, 8, i);
+        benchmarkEncodeTestMultiThread(20000, 10000, 10, 4, i);
+        benchmarkEncodeTestMultiThread(200, 10000, 50, 20, i);
+    }
 }
 
 void test_001(void) {
@@ -616,7 +628,7 @@ void test_002(void) {
     }
 
     reed_solomon_encode(rs, data_blocks, fec_blocks, block_size);
-    print_buf((gf*)output, "%d ", nrFecBlocks+nrDataBlocks);
+    print_buf((gf*)output, (char*)"%d ", nrFecBlocks+nrDataBlocks);
 
     text[1] = 'x';
     text[3] = 'y';
@@ -675,7 +687,7 @@ void test_003(void) {
     reed_solomon_encode(rs, data_blocks, fec_blocks, block_size);
     printf("golang output(example/test_rs.go):\n [[104 101] [108 108] [111 32] [119 111] [114 108] [100 32] [104 101] [108 108] [111 32] [119 111] [114 108] [100 32] \n[157 178] [83 31] [48 240] [254 93] [31 89] [151 184]]\n");
     printf("c verion output:\n");
-    print_buf((gf*)output, "%d ", nrFecBlocks*block_size + nrDataBlocks*block_size);
+    print_buf((gf*)output, (char*)"%d ", nrFecBlocks*block_size + nrDataBlocks*block_size);
     //print_matrix1((gf*)output, nrDataBlocks + nrFecBlocks, block_size);
 
     //decode
