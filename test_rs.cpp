@@ -588,7 +588,6 @@ void benchmarkEncode(void) {
         benchmarkEncodeTestMultiThread(20000, 10000, 5, 2, i);
         benchmarkEncodeTestMultiThread(20000, 10000, 8, 8, i);
         benchmarkEncodeTestMultiThread(20000, 10000, 10, 4, i);
-        benchmarkEncodeTestMultiThread(200, 10000, 50, 20, i);
     }
 }
 
